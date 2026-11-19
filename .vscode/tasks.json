@@ -1,0 +1,12 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run on ESP32",
+      "type": "shell",
+      "command": "py -3.13 -m mpremote run \"${file}\"",
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "shared" }
+    }
+  ]
+}
