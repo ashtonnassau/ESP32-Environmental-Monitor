@@ -1,6 +1,11 @@
+# BME280 temperature reader (MicroPython, ESP32)
+# Wiring: SDA to GPIO21, SCL to GPIO22, 3V3 and GND to the power rails
+# Reads the sensor's registers directly over I2C (no driver library) and converts the raw reading to degrees
+# C using the formulas in the Bosch datasheet for the BME280.
 import machine
 import time
 from machine import Pin, I2C
+# I2C bus 1 on the pins wired to the sensor; 400 kHz is I2C "fast mode"
 i2c = I2C(1, scl=Pin(22), sda=Pin(21), freq=400000)
 ID = i2c.readfrom_mem(119, 0xD0, 1, addrsize=8)
 if ID[0] != 0x60:
