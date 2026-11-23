@@ -62,8 +62,27 @@ dig_P9 = Press_Cal[17]<<8|Press_Cal[16]
 if dig_P9 >= 32768:
     dig_P9 -= 65536
 
+# HUMIDITY CALIBRATION #
+Hum_Cal_1 = list(i2c.readfrom_mem(119, 0xA1, 1, addrsize = 8))
+Hum_Cal_2 = list(i2c.readfrom_mem(119, 0xE1, 7, addrsize = 8))
+dig_H1 = Hum_Cal_1[0]
+dig_H2 = Hum_Cal_2[1]<<8|Hum_Cal_2[0]
+if dig_H2 >= 32768:
+    dig_H2 -= 65536
+dig_H3 = Hum_Cal_2[2]
+dig_H4 = Hum_Cal_2[3] << 4 | (Hum_Cal_2[4] & 0x0F)
+if dig_H4 >= 2048:
+    dig_H4 -= 4096
+dig_H5 = Hum_Cal_2[5] << 4 | (Hum_Cal_2[4] >> 4)
+if dig_H5 >= 2048:
+    dig_H5 -= 4096
+dig_H6 = Hum_Cal_2[6]
+if dig_H6 >= 128:
+    dig_H6 -= 256
+
 try:
     while True:
+        i2c.writeto_mem(119, 0xF2, bytes([0x01]),addrsize = 8)
         # ctrl_meas (0xF4): temperature x1 (001), pressure x1 (001), forced mode (01).
         # Forced mode measures once, then the chip goes back to sleep, so this
         # has to be sent before every reading, not once at the start
@@ -86,7 +105,7 @@ try:
 
         # press_msb, press_lsb, press_xlsb: a 20-bit raw value spread over 3 bytes
         # (the last byte only contributes its top 4 bits)
-        Pressure = list (i2c.readfrom_mem(119, 0xF7, 3, addrsize = 8))
+        Pressure = list(i2c.readfrom_mem(119, 0xF7, 3, addrsize = 8))
         adc_P = Pressure[0] << 12 | Pressure[1] << 4 | Pressure[2] >> 4
         # Compensation formula from the Bosch datasheet (floating-point version)
         p_var_1 = t_fine/2.0 - 64000
@@ -105,9 +124,24 @@ try:
             p_var_2 = p * dig_P8/32768.0
             P = p + (p_var_1 + p_var_2 + dig_P7)/16.0
 
+        # HUMIDITY CALCULATION #
+        Humidity = list(i2c.readfrom_mem(119, 0xFD, 2, addrsize = 8))
+        adc_H = Humidity[0] << 8 | Humidity[1]
+        var_H = t_fine - 76800.0
+        var_H = (adc_H - (dig_H4 * 64.0 + dig_H5/16384.0 * var_H)) * (dig_H2/65536.0 * (1.0 + dig_H6/67108864.0 * var_H * (1.0 + dig_H3/67108864.0 * var_H)))
+        var_H = var_H * (1.0 - dig_H1 * var_H/524288.0)
+        if var_H > 100:
+            H = 100.00
+        elif var_H < 0:
+            H = 0.00
+        else:
+            H = var_H
+
         # Displays temperature and pressure readings every 2 seconds
-        print(f"Temperature: {T:.2f}")
+        print(f"Temperature: {T:.2f} C")
+        print(f"Humidity: {H:.2f}% rH")
         print(f"Pressure: {P/100:.2f} hPa")
+        print("\n\n")
         time.sleep(2)
 except KeyboardInterrupt:
     # Ctrl+C ends the loop quietly
